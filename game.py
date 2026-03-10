@@ -4,6 +4,9 @@ import random
 import time
 from typing import Optional, Dict
 
+# dinero needed to escape the island
+ESCAPE_DINERO = 100
+
 # items available at Donaldo El Trumpo's shop; prices in dinero, heal/shield
 # values describe how much health or shield the item restores when used.
 SHOP_ITEMS = {
@@ -278,7 +281,7 @@ def battle_with_epenstein(player: Player) -> None:
     enter the wrong word or take longer than ``BATTLE_TIMEOUT`` seconds, they
     lose health; otherwise they escape unscathed.
     """
-    BATTLE_TIMEOUT = 2.0  # seconds
+    BATTLE_TIMEOUT = 4.0  # seconds
     print("!!! Epenstein appears! Type 'DIDDY' as fast as you can to fight him!")
     start = time.time()
     response = input(">>> ").strip().upper()
@@ -308,6 +311,7 @@ def player_action_menu(player: Player) -> None:
         "3": "nap",
         "4": "stats",
         "5": "inventory",
+        "6": "escape",
     }
 
     print("What would you like to do?")
@@ -316,6 +320,7 @@ def player_action_menu(player: Player) -> None:
     print("3) Nap")
     print("4) View stats")
     print("5) Inventory")
+    print("6) Attempt escape")
 
     choice = input("Enter the number of your choice: ").strip()
     action = options.get(choice)
@@ -365,6 +370,8 @@ def player_action_menu(player: Player) -> None:
         dream_event(player)
     elif action == "stats":
         display_stats(player)
+    elif action == "escape":
+        attempt_escape(player)
 
 
 
@@ -390,9 +397,30 @@ def dream_event(player: Player) -> None:
 
 # shop and inventory helpers ------------------------------------------------
 
+def attempt_escape(player: Player) -> None:
+    """Attempt to escape the island by bribing your way off.
+    
+    If the player has accumulated enough dinero, they can escape and win!
+    """
+    if player.dinero >= ESCAPE_DINERO:
+        print("You find a boat captain willing to take you off the island...")
+        print(f"The captain demands {ESCAPE_DINERO} dinero for safe passage.")
+        confirm = input(f"Pay {ESCAPE_DINERO} dinero to escape? (yes/no): ").strip().lower()
+        if confirm == 'yes':
+            player.spend_dinero(ESCAPE_DINERO)
+            print("You hand over the dinero and set sail for freedom!")
+            print("You have successfully escaped from Epenstein Island!")
+            player.health = 0  # Set health to 0 to trigger game end
+    else:
+        needed = ESCAPE_DINERO - player.dinero
+        print(f"The captain eyes you skeptically...")
+        print(f"You need {needed} more dinero to bribe your way off this island.")
+
+
 def shop(player: Player) -> None:
     """Allow the player to purchase items from Donaldo El Trumpo's shop."""
     print("Welcome to Donaldo El Trumpo's legendary shop!")
+    print(f"Your Dinero: {player.dinero}")
     while True:
         print("Items for sale:")
         for idx, (name, data) in enumerate(SHOP_ITEMS.items(), start=1):
