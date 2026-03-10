@@ -15,6 +15,13 @@ SHOP_ITEMS = {
     "Golden Apple": {"price": 50, "heal": 10, "shield": 10},
 }
 
+# oil selling options to Donaldo El Trumpo; oil required, dinero given
+SELL_OIL_OPTIONS = {
+    "5 Diddy Oil": {"oil": 5, "dinero": 7},
+    "10 Diddy Oil": {"oil": 10, "dinero": 17},
+    "15 Diddy Oil": {"oil": 15, "dinero": 30},
+}
+
 # different regions of Epenstein Island the player may traverse
 ISLAND_AREAS = [
     "Mangrove Swamp",
@@ -45,6 +52,7 @@ class Player:
         dinero (int): Amount of in-game money the player carries.
         shield (int): Temporary shield points that absorb damage before health.
         inventory (Dict[str, int]): Counts of items the player is carrying.
+        won (bool): Whether the player has successfully escaped the island.
     """
 
     MAX_HEALTH = 100
@@ -55,6 +63,7 @@ class Player:
         self.diddy_oil = diddy_oil
         self.dinero = dinero
         self.shield = shield
+        self.won = False
         # inventory maps item names to quantity
         self.inventory: Dict[str, int] = {}
 
@@ -279,7 +288,7 @@ def battle_with_epenstein(player: Player) -> None:
 
     The player must type the word ``DIDDY`` as fast as possible.  If they either
     enter the wrong word or take longer than ``BATTLE_TIMEOUT`` seconds, they
-    lose health; otherwise they escape unscathed.
+    die immediately; otherwise they defeat Epenstein and gain rewards.
     """
     BATTLE_TIMEOUT = 4.0  # seconds
     print("!!! Epenstein appears! Type 'DIDDY' as fast as you can to fight him!")
@@ -288,10 +297,12 @@ def battle_with_epenstein(player: Player) -> None:
     elapsed = time.time() - start
     if response == "DIDDY" and elapsed <= BATTLE_TIMEOUT:
         print(f"You typed fast enough ({elapsed:.2f}s). Epenstein recoils.")
+        player.add_dinero(5)
+        player.add_oil(10)
+        print("You defeated Epenstein! You gain 5 dinero and 10 Diddy Oil.")
     else:
-        damage = random.randint(10, 25)
-        player.take_damage(damage)
-        print(f"Too slow or wrong word! You take {damage} damage.")
+        print("Too slow or wrong word! Epenstein strikes you down instantly.")
+        player.health = 0
 
 
 def player_action_menu(player: Player) -> None:
@@ -334,7 +345,6 @@ def player_action_menu(player: Player) -> None:
         else:
             area = random.choice(ISLAND_AREAS)
             print(f"You travel through the {area}...")
-            player.take_damage(10)
             # random event on travel (may show additional options)
             random_travel_event(player)
     elif action == "inventory":
@@ -366,6 +376,9 @@ def player_action_menu(player: Player) -> None:
     elif action == "nap":
         print("You take a quick nap and feel refreshed.")
         player.heal(20)
+        if random.random() < 0.66:
+            player.add_oil(3)
+            print("During your nap, you dream of finding some Diddy Oil! You gain 3 Diddy Oil.")
         # only dream on naps
         dream_event(player)
     elif action == "stats":
@@ -409,8 +422,9 @@ def attempt_escape(player: Player) -> None:
         if confirm == 'yes':
             player.spend_dinero(ESCAPE_DINERO)
             print("You hand over the dinero and set sail for freedom!")
-            print("You have successfully escaped from Epenstein Island!")
-            player.health = 0  # Set health to 0 to trigger game end
+            print("Congratulations! You have successfully escaped from Epenstein Island!")
+            print("You win!")
+            player.won = True
     else:
         needed = ESCAPE_DINERO - player.dinero
         print(f"The captain eyes you skeptically...")
@@ -421,12 +435,17 @@ def shop(player: Player) -> None:
     """Allow the player to purchase items from Donaldo El Trumpo's shop."""
     print("Welcome to Donaldo El Trumpo's legendary shop!")
     print(f"Your Dinero: {player.dinero}")
+    print(f"Your Diddy Oil: {player.diddy_oil}")
     while True:
         print("Items for sale:")
         for idx, (name, data) in enumerate(SHOP_ITEMS.items(), start=1):
             print(f"{idx}) {name} - {data['price']} dinero")
+        sell_start = len(SHOP_ITEMS) + 1
+        print("Oil selling options:")
+        for idx, (name, data) in enumerate(SELL_OIL_OPTIONS.items(), start=sell_start):
+            print(f"{idx}) Sell {name} - {data['dinero']} dinero")
         print("q) Leave shop")
-        choice = input("Choose an item to buy or 'q' to leave: ").strip()
+        choice = input("Choose an item to buy, oil to sell, or 'q' to leave: ").strip()
         if choice.lower() == 'q':
             print("You exit the shop.")
             break
@@ -435,16 +454,28 @@ def shop(player: Player) -> None:
         except ValueError:
             print("Invalid selection.")
             continue
-        if idx < 1 or idx > len(SHOP_ITEMS):
-            print("Invalid selection.")
-            continue
-        item_name = list(SHOP_ITEMS.keys())[idx-1]
-        price = SHOP_ITEMS[item_name]['price']
-        if player.spend_dinero(price):
-            player.add_item(item_name)
-            print(f"You purchased a {item_name}.")
+        if 1 <= idx <= len(SHOP_ITEMS):
+            # Buying item
+            item_name = list(SHOP_ITEMS.keys())[idx-1]
+            price = SHOP_ITEMS[item_name]['price']
+            if player.spend_dinero(price):
+                player.add_item(item_name)
+                print(f"You purchased a {item_name}.")
+            else:
+                print("You don't have enough dinero.")
+        elif sell_start <= idx <= sell_start + len(SELL_OIL_OPTIONS) - 1:
+            # Selling oil
+            sell_idx = idx - sell_start
+            sell_name = list(SELL_OIL_OPTIONS.keys())[sell_idx]
+            oil_req = SELL_OIL_OPTIONS[sell_name]['oil']
+            dinero_gain = SELL_OIL_OPTIONS[sell_name]['dinero']
+            if player.use_oil(oil_req):
+                player.add_dinero(dinero_gain)
+                print(f"You sold {sell_name} for {dinero_gain} dinero.")
+            else:
+                print("You don't have enough Diddy Oil.")
         else:
-            print("You don't have enough dinero.")
+            print("Invalid selection.")
     print("Thanks for visiting Donaldo!")
 
 
@@ -490,6 +521,8 @@ if __name__ == "__main__":
     # main game loop runs until death
     while p.is_alive:
         player_action_menu(p)
+        if p.won:
+            break
         if not p.is_alive:
             print("You have perished on the island...")
             break
