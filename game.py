@@ -12,6 +12,17 @@ SHOP_ITEMS = {
     "Golden Apple": {"price": 50, "heal": 10, "shield": 10},
 }
 
+# different regions of Epenstein Island the player may traverse
+ISLAND_AREAS = [
+    "Mangrove Swamp",
+    "Sun-bleached Beach",
+    "Crimson Jungle",
+    "Abandoned Resort",
+    "Volcanic Ridge",
+    "Foggy Ravine",
+    "Ruined Observatory",
+]
+
 
 class Player:
     """Represents a player in Escape From Epenstein Island.
@@ -316,10 +327,9 @@ def player_action_menu(player: Player) -> None:
         if player.health <= 0:
             print("You can't travel; you're already out of health.")
         else:
-            print("You travel across the island...")
+            area = random.choice(ISLAND_AREAS)
+            print(f"You travel through the {area}...")
             player.take_damage(10)
-            if not player.spend_dinero(20):
-                print("You didn't have enough dinero for the trip.")
             # random event on travel (may show additional options)
             random_travel_event(player)
     elif action == "inventory":
@@ -336,20 +346,23 @@ def player_action_menu(player: Player) -> None:
                 guess = None
             if guess is None or guess < 1 or guess > 5:
                 print("Invalid guess; you lose 1 oil as penalty.")
-                player.diddy_oil = max(player.diddy_oil - 1, 0)
+                # use method to ensure no negative
+                player.use_oil(1)
             else:
                 roll = random.randint(1, 5)
                 if guess == roll:
                     reward = random.randint(1, 3)
-                    player.diddy_oil += reward
+                    player.add_oil(reward)
                     print(f"Lucky! You guessed {roll} and earned {reward} oil.")
                 else:
                     loss = random.randint(1, 2)
-                    player.diddy_oil = max(player.diddy_oil - loss, 0)
+                    player.use_oil(loss)
                     print(f"Unlucky, it was {roll}. You lost {loss} oil.")
     elif action == "nap":
         print("You take a quick nap and feel refreshed.")
         player.heal(20)
+        # only dream on naps
+        dream_event(player)
     elif action == "stats":
         display_stats(player)
 
@@ -363,7 +376,7 @@ def dream_event(player: Player) -> None:
     current Diddy Oil (rounded down).  If the player has no oil the dream
     simply passes.
     """
-    if random.random() < 0.05:
+    if random.random() < 0.33:
         if player.diddy_oil > 0:
             stolen = player.diddy_oil // 2
             player.diddy_oil -= stolen
@@ -449,8 +462,6 @@ if __name__ == "__main__":
     # main game loop runs until death
     while p.is_alive:
         player_action_menu(p)
-        # dream check after each action
-        dream_event(p)
         if not p.is_alive:
             print("You have perished on the island...")
             break
